@@ -53,6 +53,7 @@ func addUploadedItem(c *gin.Context) {
 	var err error
 
 	if items.NotCreated {
+		items.NotCreated = false
 		err = repository.WriteMongo("Autouploader", "AlreadyUploaded", items, mongoConnectionString)
 	} else {
 		err = repository.UpdateMongo("Autouploader", "AlreadyUploaded", bson.D{{"$set", items}}, bson.D{{"key", "Pixelfed"}}, mongoConnectionString)
