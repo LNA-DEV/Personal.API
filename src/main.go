@@ -27,38 +27,32 @@ func getUploadedItemsRoot(c *gin.Context) {
 	c.IndentedJSON(http.StatusOK, getUploadedItems().Value)
 }
 
-func getUploadedItems() *AlreadyPublishedItems {
+func getUploadedItems() AlreadyPublishedItems {
 	alreadyUploaded, err := repository.ReadMongo[AlreadyPublishedItems]("Autouploader", "AlreadyUploaded", bson.D{{"key", "Pixelfed"}}, mongoConnectionString)
 
 	if err != nil {
 		logger.Error(err)
 
-		return nil
+		return AlreadyPublishedItems{
+			Key:        "Pixelfed",
+			Value:      []string{},
+			NotCreated: true,
+		}
 	}
 
-	return &alreadyUploaded
+	return alreadyUploaded
 }
 
 func addUploadedItem(c *gin.Context) {
 	item := c.Query("item")
-	create := false
 
 	items := getUploadedItems()
-
-	if items == nil {
-		items = &AlreadyPublishedItems{
-			Key: "Pixelfed",
-		}
-		items.Value = []string{}
-
-		create = true
-	}
 
 	items.Value = append(items.Value, item)
 
 	var err error
 
-	if create {
+	if items.NotCreated {
 		err = repository.WriteMongo("Autouploader", "AlreadyUploaded", items, mongoConnectionString)
 	} else {
 		err = repository.UpdateMongo("Autouploader", "AlreadyUploaded", bson.D{{"$set", items}}, bson.D{{"key", "Pixelfed"}}, mongoConnectionString)
