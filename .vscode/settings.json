@@ -1,7 +1,10 @@
 {
     "cSpell.words": [
         "autouploader",
+        "bson",
         "gonic",
-        "pixelfed"
+        "logrus",
+        "pixelfed",
+        "sirupsen"
     ]
 }
