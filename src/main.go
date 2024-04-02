@@ -12,13 +12,17 @@ import (
 
 var logger = logrus.New()
 var mongoConnectionString = ""
+var apiKey = ""
 
 func main() {
 	mongoConnectionString = os.Getenv("MONGODB")
+	apiKey = os.Getenv("API_KEY")
 
 	router := gin.Default()
+
+	// Endpoints
 	router.GET("/autouploader/pixelfed", getUploadedItemsRoot)
-	router.POST("/autouploader/pixelfed", addUploadedItem)
+	router.POST("/autouploader/pixelfed", validateAPIKey(), addUploadedItem)
 
 	router.Run("0.0.0.0:8080")
 }
@@ -65,5 +69,15 @@ func addUploadedItem(c *gin.Context) {
 		c.Status(http.StatusInternalServerError)
 
 		return
+	}
+}
+
+func validateAPIKey() gin.HandlerFunc {
+	return func(c *gin.Context) {
+		authentication := c.Request.Header.Get("Authentication")
+
+		if authentication != "ApiKey " + apiKey {
+			c.JSON(http.StatusUnauthorized, gin.H{"status": 401, "message": "Authentication failed"})
+		}
 	}
 }
