@@ -18,6 +18,11 @@ func main() {
 	mongoConnectionString = os.Getenv("MONGODB")
 	apiKey = os.Getenv("API_KEY")
 
+	if apiKey == "" {
+		logger.Warn("ApiKey not set!!!")
+		apiKey = "1234"
+	}
+
 	router := gin.Default()
 
 	// Endpoints
@@ -74,10 +79,15 @@ func addUploadedItem(c *gin.Context) {
 
 func validateAPIKey() gin.HandlerFunc {
 	return func(c *gin.Context) {
-		authentication := c.Request.Header.Get("Authentication")
+		authentication := c.Request.Header.Get("Authorization")
+		expectedAuth := "ApiKey " + apiKey
 
-		if authentication != "ApiKey " + apiKey {
-			c.JSON(http.StatusUnauthorized, gin.H{"status": 401, "message": "Authentication failed"})
+		if authentication != expectedAuth {
+			c.JSON(http.StatusUnauthorized, gin.H{"status": http.StatusUnauthorized, "message": "Authentication failed"})
+			c.Abort()
+			return
 		}
+
+		c.Next()
 	}
 }
