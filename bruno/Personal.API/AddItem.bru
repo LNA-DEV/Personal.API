@@ -5,7 +5,7 @@ meta {
 }
 
 post {
-  url: http://localhost:8080/autouploader/pixelfed?item=test
+  url: {{host}}/autouploader/pixelfed?item=test
   body: none
   auth: none
 }
@@ -15,5 +15,5 @@ query {
 }
 
 headers {
-  Authorization: ApiKey 1234
+  Authorization: ApiKey {{apiKey}}
 }
