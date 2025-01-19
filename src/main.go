@@ -25,25 +25,42 @@ func main() {
 
 	router := gin.Default()
 
-	// Endpoints
-	router.GET("/autouploader/pixelfed", getUploadedItemsRoot)
-	router.POST("/autouploader/pixelfed", validateAPIKey(), addUploadedItem)
+	// Endpoints for Pixelfed
+	router.GET("/autouploader/pixelfed", func(c *gin.Context) {
+		getUploadedItems(c, "Pixelfed")
+	})
+	router.POST("/autouploader/pixelfed", validateAPIKey(), func(c *gin.Context) {
+		addUploadedItem(c, "Pixelfed")
+	})
+
+	// Endpoints for Bluesky
+	router.GET("/autouploader/bluesky", func(c *gin.Context) {
+		getUploadedItems(c, "Bluesky")
+	})
+	router.POST("/autouploader/bluesky", validateAPIKey(), func(c *gin.Context) {
+		addUploadedItem(c, "Bluesky")
+	})
 
 	router.Run("0.0.0.0:8080")
 }
 
-func getUploadedItemsRoot(c *gin.Context) {
-	c.IndentedJSON(http.StatusOK, getUploadedItems().Value)
+func getUploadedItems(c *gin.Context, platform string) {
+	items := fetchUploadedItems(platform)
+	c.IndentedJSON(http.StatusOK, items.Value)
 }
 
-func getUploadedItems() AlreadyPublishedItems {
-	alreadyUploaded, err := repository.ReadMongo[AlreadyPublishedItems]("Autouploader", "AlreadyUploaded", bson.D{{"key", "Pixelfed"}}, mongoConnectionString)
+func fetchUploadedItems(platform string) AlreadyPublishedItems {
+	alreadyUploaded, err := repository.ReadMongo[AlreadyPublishedItems](
+		"Autouploader",
+		"AlreadyUploaded",
+		bson.D{{"key", platform}},
+		mongoConnectionString,
+	)
 
 	if err != nil {
 		logger.Error(err)
-
 		return AlreadyPublishedItems{
-			Key:        "Pixelfed",
+			Key:        platform,
 			Value:      []string{},
 			NotCreated: true,
 		}
@@ -52,29 +69,37 @@ func getUploadedItems() AlreadyPublishedItems {
 	return alreadyUploaded
 }
 
-func addUploadedItem(c *gin.Context) {
+func addUploadedItem(c *gin.Context, platform string) {
 	item := c.Query("item")
+	if item == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"status": http.StatusBadRequest, "message": "Item is required"})
+		return
+	}
 
-	items := getUploadedItems()
-
+	items := fetchUploadedItems(platform)
 	items.Value = append(items.Value, item)
 
 	var err error
-
 	if items.NotCreated {
 		items.NotCreated = false
 		err = repository.WriteMongo("Autouploader", "AlreadyUploaded", items, mongoConnectionString)
 	} else {
-		err = repository.UpdateMongo("Autouploader", "AlreadyUploaded", bson.D{{"$set", items}}, bson.D{{"key", "Pixelfed"}}, mongoConnectionString)
+		err = repository.UpdateMongo(
+			"Autouploader",
+			"AlreadyUploaded",
+			bson.D{{"$set", bson.D{{"value", items.Value}}}},
+			bson.D{{"key", platform}},
+			mongoConnectionString,
+		)
 	}
 
 	if err != nil {
 		logger.Error(err)
-
 		c.Status(http.StatusInternalServerError)
-
 		return
 	}
+
+	c.Status(http.StatusOK)
 }
 
 func validateAPIKey() gin.HandlerFunc {
