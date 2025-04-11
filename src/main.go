@@ -41,6 +41,14 @@ func main() {
 		addUploadedItem(c, "Bluesky")
 	})
 
+	// Endpoints for Instagram
+	router.GET("/autouploader/instagram", func(c *gin.Context) {
+		getUploadedItems(c, "Instagram")
+	})
+	router.POST("/autouploader/instagram", validateAPIKey(), func(c *gin.Context) {
+		addUploadedItem(c, "Instagram")
+	})
+
 	router.Run("0.0.0.0:8080")
 }
 
