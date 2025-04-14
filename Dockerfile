@@ -1,4 +1,4 @@
-FROM golang:1.21 as build
+FROM golang:1.23 AS build
 
 WORKDIR /app
 
@@ -9,7 +9,7 @@ RUN go test ./...
 
 RUN CGO_ENABLED=0 GOOS=linux go build -o personal-api
 
-FROM alpine:latest as run
+FROM alpine:latest AS run
 
 WORKDIR /app
 
