@@ -1,6 +1,7 @@
 package main
 
 import (
+	"log"
 	"net/http"
 	"os"
 
@@ -23,6 +24,10 @@ func main() {
 		apiKey = "1234"
 	}
 
+    if err := repository.Init(mongoConnectionString); err != nil {
+        log.Fatal("MongoDB initialization failed: ", err)
+    }
+	
 	router := gin.Default()
 
 	// Endpoints for Pixelfed
@@ -62,7 +67,6 @@ func fetchUploadedItems(platform string) AlreadyPublishedItems {
 		"Autouploader",
 		"AlreadyUploaded",
 		bson.D{{"key", platform}},
-		mongoConnectionString,
 	)
 
 	if err != nil {
@@ -90,14 +94,13 @@ func addUploadedItem(c *gin.Context, platform string) {
 	var err error
 	if items.NotCreated {
 		items.NotCreated = false
-		err = repository.WriteMongo("Autouploader", "AlreadyUploaded", items, mongoConnectionString)
+		err = repository.WriteMongo("Autouploader", "AlreadyUploaded", items)
 	} else {
 		err = repository.UpdateMongo(
 			"Autouploader",
 			"AlreadyUploaded",
 			bson.D{{"$set", bson.D{{"value", items.Value}}}},
 			bson.D{{"key", platform}},
-			mongoConnectionString,
 		)
 	}
 

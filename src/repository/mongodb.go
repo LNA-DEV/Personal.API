@@ -2,92 +2,91 @@ package repository
 
 import (
 	"context"
+	"errors"
+	"log"
+	"time"
+
 	"go.mongodb.org/mongo-driver/mongo"
 	"go.mongodb.org/mongo-driver/mongo/options"
-	"log"
 )
 
-var client mongo.Client
+var client *mongo.Client
 
-func setup(connectionString string) {
-	// Set client options
-	clientOptions := options.Client().ApplyURI(connectionString)
+func Init(connectionString string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
 
-	// Connect to MongoDB
-	tempClient, err := mongo.Connect(context.Background(), clientOptions)
+	var err error
+	client, err = mongo.Connect(ctx, options.Client().ApplyURI(connectionString))
 	if err != nil {
-		log.Fatal(err)
+		return err
 	}
 
-	client = *tempClient
-
-	// Ping the MongoDB server to verify that we're connected
-	err = client.Ping(context.Background(), nil)
-	if err != nil {
-		log.Fatal(err)
+	// Ping MongoDB to ensure the connection is live.
+	if err = client.Ping(ctx, nil); err != nil {
+		return err
 	}
 
 	logger.Info("Connected to MongoDB!")
-}
-
-func WriteMongo(database string, collectionName string, document any, connectionString string) error {
-	setup(connectionString)
-	// Disconnect from MongoDB when program exits
-	defer func() {
-		if discErr := client.Disconnect(context.Background()); discErr != nil {
-			log.Fatal(discErr)
-		}
-	}()
-
-	collection := client.Database(database).Collection(collectionName)
-
-	// Insert a document
-	_, err := collection.InsertOne(context.Background(), document)
-	if err != nil {
-		return err
-	}
-
-	logger.Info("Inserted document")
 
 	return nil
 }
 
-func UpdateMongo(database string, collectionName string, document any, filter any, connectionString string) error {
-	setup(connectionString)
-	// Disconnect from MongoDB when program exits
-	defer func() {
-		if discErr := client.Disconnect(context.Background()); discErr != nil {
-			log.Fatal(discErr)
-		}
-	}()
+func Close() error {
+	if client == nil {
+		return errors.New("mongo client not initialized")
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	return client.Disconnect(ctx)
+}
 
-	collection := client.Database(database).Collection(collectionName)
+func getCollection(database, collectionName string) (*mongo.Collection, error) {
+	if client == nil {
+		return nil, errors.New("mongo client not initialized")
+	}
+	return client.Database(database).Collection(collectionName), nil
+}
 
-	// Insert a document
-	_, err := collection.UpdateOne(context.Background(), filter, document)
+func WriteMongo(database, collectionName string, document any) error {
+	collection, err := getCollection(database, collectionName)
 	if err != nil {
 		return err
 	}
 
-	logger.Info("Inserted document")
+	_, err = collection.InsertOne(context.Background(), document)
+	if err != nil {
+		return err
+	}
 
+	log.Println("Inserted document")
 	return nil
 }
 
-func ReadMongo[T any](database string, collectionName string, filter any, connectionString string) (T, error) {
-	setup(connectionString)
-	// Disconnect from MongoDB when program exits
-	defer func() {
-		if discErr := client.Disconnect(context.Background()); discErr != nil {
-			log.Fatal(discErr)
-		}
-	}()
+func UpdateMongo(database, collectionName string, document any, filter any) error {
+	collection, err := getCollection(database, collectionName)
+	if err != nil {
+		return err
+	}
 
-	collection := client.Database(database).Collection(collectionName)
+	_, err = collection.UpdateOne(context.Background(), filter, document)
+	if err != nil {
+		return err
+	}
 
+	log.Println("Updated document")
+	return nil
+}
+
+func ReadMongo[T any](database, collectionName string, filter any) (T, error) {
 	var result T
 
-	err := collection.FindOne(context.Background(), filter).Decode(&result)
+	collection, err := getCollection(database, collectionName)
+	if err != nil {
+		return result, err
+	}
+
+	err = collection.FindOne(context.Background(), filter).Decode(&result)
 	if err != nil {
 		return result, err
 	}
@@ -95,35 +94,25 @@ func ReadMongo[T any](database string, collectionName string, filter any, connec
 	return result, nil
 }
 
-func CountMongo[T any](database string, collectionName string, filter any, connectionString string) (int64, error) {
-	setup(connectionString)
-	// Disconnect from MongoDB when program exits
-	defer func() {
-		if discErr := client.Disconnect(context.Background()); discErr != nil {
-			log.Fatal(discErr)
-		}
-	}()
-
-	collection := client.Database(database).Collection(collectionName)
-
-	result, err := collection.CountDocuments(context.Background(), filter)
+func CountMongo(database, collectionName string, filter any) (int64, error) {
+	collection, err := getCollection(database, collectionName)
 	if err != nil {
-		return result, err
+		return 0, err
 	}
 
-	return result, nil
+	count, err := collection.CountDocuments(context.Background(), filter)
+	if err != nil {
+		return 0, err
+	}
+
+	return count, nil
 }
 
-func DeleteMongo(database string, collectionName string, filter any, connectionString string) (int64, error) {
-	setup(connectionString)
-	// Disconnect from MongoDB when program exits
-	defer func() {
-		if discErr := client.Disconnect(context.Background()); discErr != nil {
-			log.Fatal(discErr)
-		}
-	}()
-
-	collection := client.Database(database).Collection(collectionName)
+func DeleteMongo(database, collectionName string, filter any) (int64, error) {
+	collection, err := getCollection(database, collectionName)
+	if err != nil {
+		return 0, err
+	}
 
 	result, err := collection.DeleteMany(context.Background(), filter)
 	if err != nil {
